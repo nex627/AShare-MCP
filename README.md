@@ -245,11 +245,12 @@ ashare-mcp/
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
-## 🙏 致谢
+## 🙏 致谢与参考
 
 - [Baostock](http://www.baostock.com/) - 免费 A股数据源
 - [AkShare](https://github.com/akfamily/akshare) - 财经数据接口
-- [finance-trading-ai-agents-mcp](https://github.com/aitrados/finance-trading-ai-agents-mcp) - 参考项目
+- [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) - 多智能体 LLM 交易框架
+- [hsliuping/TradingAgents-CN](https://github.com/hsliuping/TradingAgents-CN) - TradingAgents 中文增强版
 
 ---
 
