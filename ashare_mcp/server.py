@@ -1,11 +1,13 @@
 """
 AShare-MCP - A股量化交易 MCP 服务器
+包含完整分析工作流：市场分析、情绪分析、基本面分析、多空辩论、风险评估、最终决策
 """
 import json
 import baostock as bs
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 
@@ -139,6 +141,30 @@ class StockDataFetcher:
         return {"symbol": symbol, "data": data_list[0] if data_list else None}
 
 
+# ==================== Skill 提示词加载 ====================
+
+class SkillLoader:
+    """Skill 提示词加载器"""
+
+    def __init__(self, skills_dir: str = None):
+        if skills_dir is None:
+            skills_dir = Path(__file__).parent.parent / "skills"
+        self.skills_dir = Path(skills_dir)
+
+    def load_skill(self, skill_name: str) -> Optional[str]:
+        """加载指定 Skill 的提示词"""
+        skill_file = self.skills_dir / f"{skill_name}.md"
+        if skill_file.exists():
+            return skill_file.read_text(encoding='utf-8')
+        return None
+
+    def get_all_skills(self) -> List[str]:
+        """获取所有可用的 Skill 名称"""
+        if not self.skills_dir.exists():
+            return []
+        return [f.stem for f in self.skills_dir.glob("*.md")]
+
+
 # ==================== MCP 协议处理 ====================
 
 @dataclass
@@ -149,10 +175,11 @@ class MCPTool:
 
 
 class AShareMCPServer:
-    """AShare MCP 服务器"""
+    """AShare MCP 服务器 - 包含完整分析工作流"""
 
     def __init__(self):
         self.data_fetcher = StockDataFetcher()
+        self.skill_loader = SkillLoader()
         self.tools = self._create_tools()
 
     def _create_tools(self) -> List[MCPTool]:
@@ -164,24 +191,10 @@ class AShareMCPServer:
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "symbol": {
-                            "type": "string",
-                            "description": "股票代码，如 '600519.SH' 或 '000001.SZ'"
-                        },
-                        "period": {
-                            "type": "string",
-                            "enum": ["daily", "weekly", "monthly"],
-                            "description": "K线周期",
-                            "default": "daily"
-                        },
-                        "start_date": {
-                            "type": "string",
-                            "description": "开始日期 YYYY-MM-DD"
-                        },
-                        "end_date": {
-                            "type": "string",
-                            "description": "结束日期 YYYY-MM-DD"
-                        }
+                        "symbol": {"type": "string", "description": "股票代码，如 '600519.SH'"},
+                        "period": {"type": "string", "enum": ["daily", "weekly", "monthly"], "default": "daily"},
+                        "start_date": {"type": "string", "description": "开始日期 YYYY-MM-DD"},
+                        "end_date": {"type": "string", "description": "结束日期 YYYY-MM-DD"}
                     },
                     "required": ["symbol"]
                 }
@@ -192,20 +205,9 @@ class AShareMCPServer:
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "symbol": {
-                            "type": "string",
-                            "description": "股票代码，如 '600519.SH'"
-                        },
-                        "period": {
-                            "type": "string",
-                            "enum": ["daily", "weekly", "monthly"],
-                            "description": "K线周期",
-                            "default": "daily"
-                        },
-                        "end_date": {
-                            "type": "string",
-                            "description": "结束日期 YYYY-MM-DD"
-                        }
+                        "symbol": {"type": "string", "description": "股票代码，如 '600519.SH'"},
+                        "period": {"type": "string", "enum": ["daily", "weekly", "monthly"], "default": "daily"},
+                        "end_date": {"type": "string", "description": "结束日期 YYYY-MM-DD"}
                     },
                     "required": ["symbol"]
                 }
@@ -216,12 +218,52 @@ class AShareMCPServer:
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "symbol": {
-                            "type": "string",
-                            "description": "股票代码，如 '600519.SH'"
-                        }
+                        "symbol": {"type": "string", "description": "股票代码，如 '600519.SH'"}
                     },
                     "required": ["symbol"]
+                }
+            ),
+            MCPTool(
+                name="full_analysis",
+                description="【完整工作流】获取股票完整分析数据（技术指标+基本面+风险评估），供 AI 生成分析报告使用",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "symbol": {"type": "string", "description": "股票代码，如 '600519.SH'"},
+                        "period": {"type": "string", "enum": ["daily", "weekly", "monthly"], "default": "daily"}
+                    },
+                    "required": ["symbol"]
+                }
+            ),
+            MCPTool(
+                name="get_skill_prompt",
+                description="获取分析角色的提示词（用于 AI 扮演分析师生成报告）",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "skill_name": {
+                            "type": "string",
+                            "description": "Skill名称",
+                            "enum": [
+                                "01_market_analyst",
+                                "02_sentiment_analyst",
+                                "03_fundamentals_analyst",
+                                "04_bull_researcher",
+                                "05_bear_researcher",
+                                "06_risk_analyst",
+                                "07_portfolio_manager"
+                            ]
+                        }
+                    },
+                    "required": ["skill_name"]
+                }
+            ),
+            MCPTool(
+                name="list_skills",
+                description="列出所有可用的分析 Skill",
+                input_schema={
+                    "type": "object",
+                    "properties": {}
                 }
             )
         ]
@@ -287,6 +329,12 @@ class AShareMCPServer:
                 result = self.data_fetcher.get_indicators(**arguments)
             elif tool_name == "get_stock_info":
                 result = self.data_fetcher.get_stock_info(**arguments)
+            elif tool_name == "full_analysis":
+                result = self._get_full_analysis(**arguments)
+            elif tool_name == "get_skill_prompt":
+                result = {"prompt": self.skill_loader.load_skill(arguments.get("skill_name", ""))}
+            elif tool_name == "list_skills":
+                result = {"skills": self.skill_loader.get_all_skills()}
             else:
                 return {
                     "jsonrpc": "2.0",
@@ -307,6 +355,26 @@ class AShareMCPServer:
                 "result": {"content": [{"type": "text", "text": f"Error: {str(e)}"}]},
                 "id": request_id
             }
+
+    def _get_full_analysis(self, symbol: str, period: str = "daily") -> Dict[str, Any]:
+        """获取完整分析数据"""
+        result = {
+            "symbol": symbol,
+            "period": period,
+            "analysis_date": datetime.now().strftime('%Y-%m-%d')
+        }
+
+        # 技术指标
+        indicators = self.data_fetcher.get_indicators(symbol, period=period)
+        if "error" not in indicators:
+            result["technical"] = indicators
+
+        # 股票信息
+        info = self.data_fetcher.get_stock_info(symbol)
+        if "error" not in info:
+            result["stock_info"] = info
+
+        return result
 
 
 def mcp_run():

@@ -102,6 +102,36 @@ print(result)
 | `get_technical_indicators` | 获取技术指标 | symbol, period, end_date |
 | `get_stock_info` | 获取股票基本信息 | symbol |
 | `get_realtime_quote` | 获取实时行情 | symbol |
+| `full_analysis` | 完整分析（多角色辩论） | symbol, end_date |
+| `get_skill_prompt` | 获取分析角色提示词 | skill_name |
+| `list_skills` | 列出所有分析角色 | - |
+
+## 🎭 分析角色 (Skills)
+
+AShare-MCP 内置 7 个专业分析角色，模拟 TradingAgents 多分析师辩论流程：
+
+| 序号 | 角色 | 文件 | 说明 |
+|------|------|------|------|
+| 01 | 市场分析师 | 01_market_analyst.md | 技术面分析（均线、MACD、RSI、布林带） |
+| 02 | 情绪分析师 | 02_sentiment_analyst.md | 社交媒体情绪分析 |
+| 03 | 新闻分析师 | 03_news_analyst.md | 宏观市场与公司新闻分析 |
+| 04 | 基本面分析师 | 04_fundamentals_analyst.md | 财务数据、估值分析 |
+| 05 | 多头研究员 | 05_bull_researcher.md | 挖掘看涨逻辑，辩论反驳空头 |
+| 06 | 空头研究员 | 06_bear_researcher.md | 挖掘看跌逻辑，辩论反驳多头 |
+| 07 | 投资组合经理 | 07_portfolio_manager.md | 综合决策 BUY/HOLD/SELL |
+
+### 使用分析角色
+
+```python
+# 列出所有可用角色
+server.list_skills()
+
+# 获取特定角色的提示词
+prompt = server.get_skill_prompt("market_analyst")
+
+# 使用完整分析流程（多角色辩论）
+result = server.full_analysis(symbol="600519.SH", end_date="2026-04-13")
+```
 
 ## 📊 支持的技术指标
 
